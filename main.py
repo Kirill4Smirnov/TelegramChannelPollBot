@@ -1,16 +1,27 @@
 import os
 import time
+from dotenv import load_dotenv
 from telegram import Poll, PollOption
 from telegram.ext import Updater, CommandHandler
 
-# Replace with your bot token
-BOT_TOKEN = 'YOUR_BOT_TOKEN'
+#private tokens will be loaded later
+BOT_TOKEN = ''
+CHANNEL_ID = ''
 
-# Replace with your Telegram channel ID
-CHANNEL_ID = 'YOUR_CHANNEL_ID'
+
+def load_secret_tokens():
+    global BOT_TOKEN
+    global CHANNEL_ID
+    load_dotenv()
+
+    BOT_TOKEN = os.environ.get("BOT_TOKEN")
+    CHANNEL_ID = os.environ.get("CHANNEL_ID")
+
 
 def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="I'm a bot that posts polls to your Telegram channel!")
+    context.bot.send_message(chat_id=update.effective_chat.id,
+                             text="I'm a bot that posts polls to your Telegram channel!")
+
 
 def post_poll(context):
     # Create the poll
@@ -33,6 +44,7 @@ def post_poll(context):
     # Send the poll to the Telegram channel
     context.bot.send_poll(chat_id=CHANNEL_ID, poll=poll)
 
+
 def main():
     updater = Updater(token=BOT_TOKEN, use_context=True)
     dispatcher = updater.dispatcher
@@ -50,4 +62,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    pass
