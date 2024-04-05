@@ -1,5 +1,5 @@
 import os
-import time
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import logging
 from telegram import (
@@ -14,13 +14,12 @@ from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    PollAnswerHandler,
-    PollHandler,
-    filters,
+    ContextTypes
 )
 
+INTERVAL = timedelta(days=1)
+START_TIME = datetime.now(tz=timezone(timedelta(hours=3)))
+START_TIME = (START_TIME + timedelta(days=1)).replace(hour=8, minute=0)
 
 # private tokens will be loaded later
 BOT_TOKEN = ''
@@ -49,8 +48,8 @@ TOTAL_VOTER_COUNT = 3
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Inform user about what this bot can do"""
     await update.message.reply_text(
-        "Please select /poll to get a Poll, /poll_to_channel to send The Poll to The Channel or /preview"
-        " to generate a preview for your poll"
+        "Please select /poll to get a Poll, /poll_to_channel to send The Poll to The Channel."
+        "You can also /enable_polling or /disable_polling to The Channel"
     )
 
 
@@ -61,14 +60,31 @@ async def send_message_to_channel(update: Update, context: ContextTypes.DEFAULT_
 
 async def send_poll_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send poll about night dreams to a channel with predefined id"""
-    questions = ["Без снов", "Нейтральный сон", "Приятное сновидение", "Неприятное сновидение / кошмар", "Несуразный бред", "Смешанные эмоции"]
+    date = datetime.datetime.today().strftime('%d.%m')
+    questions = ["Без снов", "Нейтральный сон", "Приятное сновидение", "Неприятное сновидение / кошмар",
+                 "Несуразный бред", "Смешанные эмоции"]
     await update._bot.send_poll(
         CHANNEL_ID,
-        "Сегодняшние сновидения <вставьте число>",
+        f"Сегодняшние сновидения {date}",
         questions,
         is_anonymous=True,
         allows_multiple_answers=False,
     )
+
+
+async def send_poll_to_channel_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send poll about night dreams to a channel with predefined id"""
+    date = datetime.today().strftime('%d.%m')
+    questions = ["Без снов", "Нейтральный сон", "Приятное сновидение", "Неприятное сновидение / кошмар",
+                 "Несуразный бред", "Смешанные эмоции"]
+    await context.bot.send_poll(
+        CHANNEL_ID,
+        f"Сегодняшние сновидения {date}",
+        questions,
+        is_anonymous=True,
+        allows_multiple_answers=False,
+    )
+
 
 async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a predefined poll"""
@@ -119,62 +135,39 @@ async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE
         await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
 
 
-async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a predefined poll"""
-    questions = ["1", "2", "4", "20"]
-    message = await update.effective_message.reply_poll(
-        "How many eggs do you need for a cake?", questions, type=Poll.QUIZ, correct_option_id=2
-    )
-    # Save some info about the poll the bot_data for later use in receive_quiz_answer
-    payload = {
-        message.poll.id: {"chat_id": update.effective_chat.id, "message_id": message.message_id}
-    }
-    context.bot_data.update(payload)
-
-
-async def receive_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Close quiz after three participants took it"""
-    # the bot can receive closed poll updates we don't care about
-    if update.poll.is_closed:
-        return
-    if update.poll.total_voter_count == TOTAL_VOTER_COUNT:
-        try:
-            quiz_data = context.bot_data[update.poll.id]
-        # this means this poll answer update is from an old poll, we can't stop it then
-        except KeyError:
-            return
-        await context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
-
-
-async def preview(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ask user to create a poll and display a preview of it"""
-    # using this without a type lets the user chooses what he wants (quiz or poll)
-    button = [[KeyboardButton("Press me!", request_poll=KeyboardButtonPollType())]]
-    message = "Press the button to let the bot generate a preview for your poll"
-    # using one_time_keyboard to hide the keyboard
-    await update.effective_message.reply_text(
-        message, reply_markup=ReplyKeyboardMarkup(button, one_time_keyboard=True)
-    )
-
-
-async def receive_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """On receiving polls, reply to it by a closed poll copying the received poll"""
-    actual_poll = update.effective_message.poll
-    # Only need to set the question and options, since all other parameters don't matter for
-    # a closed poll
-    await update.effective_message.reply_poll(
-        question=actual_poll.question,
-        options=[o.text for o in actual_poll.options],
-        # with is_closed true, the poll/quiz is immediately closed
-        is_closed=True,
-        reply_markup=ReplyKeyboardRemove(),
-    )
-
-
 async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display a help message"""
-    await update.message.reply_text("Use /poll, /poll_to_channel or /preview to test this bot.")
+    await update.message.reply_text("Use /poll, /poll_to_channel to test this bot. You can also "
+                                    "/enable_polling or /disable_polling to The Channel")
 
+def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Remove job with given name. Returns whether job was removed."""
+    current_jobs = context.job_queue.get_jobs_by_name(name)
+    if not current_jobs:
+        return False
+    for job in current_jobs:
+        job.schedule_removal()
+    return True
+
+
+async def enable_regular_polling(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_message.chat_id
+
+    job_removed = remove_job_if_exists(str(chat_id), context)
+    context.job_queue.run_repeating(send_poll_to_channel_job, interval=INTERVAL, first=START_TIME, name=str(chat_id))
+
+    text = "Polling successfully scheduled!"
+    if job_removed:
+        text += " Old polling was removed."
+    await update.effective_message.reply_text(text)
+
+
+async def disable_regular_polling(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Remove the job if the user changed their mind."""
+    chat_id = update.message.chat_id
+    job_removed = remove_job_if_exists(str(chat_id), context)
+    text = "Polling job successfully cancelled!" if job_removed else "You have no active pollings."
+    await update.message.reply_text(text)
 
 def main() -> None:
     """Run bot."""
@@ -184,9 +177,10 @@ def main() -> None:
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("poll", poll))
-    application.add_handler(CommandHandler("preview", preview))
     application.add_handler(CommandHandler("help", help_handler))
     application.add_handler(CommandHandler("poll_to_channel", send_poll_to_channel))
+    application.add_handler(CommandHandler("enable_polling", enable_regular_polling))
+    application.add_handler(CommandHandler("disable_polling", disable_regular_polling))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
