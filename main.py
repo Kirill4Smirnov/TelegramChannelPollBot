@@ -49,10 +49,26 @@ TOTAL_VOTER_COUNT = 3
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Inform user about what this bot can do"""
     await update.message.reply_text(
-        "Please select /poll to get a Poll, /quiz to get a Quiz or /preview"
+        "Please select /poll to get a Poll, /poll_to_channel to send The Poll to The Channel or /preview"
         " to generate a preview for your poll"
     )
 
+
+async def send_message_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send a test message to a chat with predefined id"""
+    await update._bot.send_message(CHANNEL_ID, "test message")
+
+
+async def send_poll_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send poll about night dreams to a channel with predefined id"""
+    questions = ["Без снов", "Нейтральный сон", "Приятное сновидение", "Неприятное сновидение / кошмар", "Несуразный бред", "Смешанные эмоции"]
+    await update._bot.send_poll(
+        CHANNEL_ID,
+        "Сегодняшние сновидения <вставьте число>",
+        questions,
+        is_anonymous=True,
+        allows_multiple_answers=False,
+    )
 
 async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a predefined poll"""
@@ -85,10 +101,10 @@ async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE
     # this means this poll answer update is from an old poll, we can't do our answering then
     except KeyError:
         return
-    selected_options = answer.option_ids
+    selected_options_ids = answer.option_ids
     answer_string = ""
-    for question_id in selected_options:
-        if question_id != selected_options[-1]:
+    for question_id in selected_options_ids:
+        if question_id != selected_options_ids[-1]:
             answer_string += questions[question_id] + " and "
         else:
             answer_string += questions[question_id]
@@ -157,21 +173,20 @@ async def receive_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Display a help message"""
-    await update.message.reply_text("Use /quiz, /poll or /preview to test this bot.")
+    await update.message.reply_text("Use /poll, /poll_to_channel or /preview to test this bot.")
 
 
 def main() -> None:
     """Run bot."""
+    load_secret_tokens()
+
     # Create the Application and pass it your bot's token.
-    application = Application.builder().token("TOKEN").build()
+    application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("poll", poll))
-    application.add_handler(CommandHandler("quiz", quiz))
     application.add_handler(CommandHandler("preview", preview))
     application.add_handler(CommandHandler("help", help_handler))
-    application.add_handler(MessageHandler(filters.POLL, receive_poll))
-    application.add_handler(PollAnswerHandler(receive_poll_answer))
-    application.add_handler(PollHandler(receive_quiz_answer))
+    application.add_handler(CommandHandler("poll_to_channel", send_poll_to_channel))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
