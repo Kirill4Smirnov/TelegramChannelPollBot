@@ -1,6 +1,5 @@
 import os
 from datetime import datetime, timedelta, timezone
-from dotenv import load_dotenv
 import logging
 from telegram import (
     KeyboardButton,
@@ -16,6 +15,7 @@ from telegram.ext import (
     CommandHandler,
     ContextTypes
 )
+from dotenv import load_dotenv
 
 INTERVAL = timedelta(days=1)
 START_TIME = datetime.now(tz=timezone(timedelta(hours=3)))
