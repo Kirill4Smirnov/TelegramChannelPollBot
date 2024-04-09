@@ -61,7 +61,7 @@ async def send_message_to_channel(update: Update, context: ContextTypes.DEFAULT_
 async def send_poll_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send poll about night dreams to a channel with predefined id"""
     date = datetime.datetime.today().strftime('%d.%m')
-    questions = ["Без снов", "Нейтральный сон", "Приятное сновидение", "Неприятное сновидение / кошмар",
+    questions = ["Не помню", "Без снов", "Нейтральный сон", "Приятное сновидение", "Неприятное сновидение / кошмар",
                  "Несуразный бред", "Смешанные эмоции"]
     await update._bot.send_poll(
         CHANNEL_ID,
@@ -75,7 +75,7 @@ async def send_poll_to_channel(update: Update, context: ContextTypes.DEFAULT_TYP
 async def send_poll_to_channel_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send poll about night dreams to a channel with predefined id"""
     date = datetime.today().strftime('%d.%m')
-    questions = ["Без снов", "Нейтральный сон", "Приятное сновидение", "Неприятное сновидение / кошмар",
+    questions = ["Не помню", "Без снов", "Нейтральный сон", "Приятное сновидение", "Неприятное сновидение / кошмар",
                  "Несуразный бред", "Смешанные эмоции"]
     await context.bot.send_poll(
         CHANNEL_ID,
